@@ -1,91 +1,35 @@
-# KALA MAIA — GitHub Pages + Google Sheets starter
+# KALA MAIA — Existing Google Sheets read-only lookup
 
-A new-brand starter inspired by the *general* clean, warm, editorial style of the reference site. It does not copy the original brand, text, or assets.
+This starter connects the GitHub Pages frontend to the existing `DB SEP26` worksheet and only reads records. It does not write to, modify, or replace spreadsheet data.
 
-## What is included
+## Included
+- Responsive KALA MAIA website
+- Customer ID lookup
+- Apps Script read-only API for `DB SEP26`
+- Limited output: title, author, format, quantity, and unit price
+- Demo mode until API URL is configured
 
-- Responsive landing page with order, tracking, and support/refund entry points
-- Order form with an estimated total
-- Tracking lookup UI
-- Shipping/refund support request UI
-- Demo mode so the site can be previewed before connecting a backend
-- Google Apps Script backend starter for order creation, customer-safe order lookup, and support requests
-- Server-side item-price validation and spreadsheet formula-injection protection
+## Deploy Apps Script
+1. Open the existing Google Sheet.
+2. Choose Extensions → Apps Script.
+3. Paste `apps-script/Code.gs` into the editor and save.
+4. In Project Settings → Script properties, set `SPREADSHEET_ID` to the existing spreadsheet ID:
+   `188-HcXMJtjo8AQL_ELk_QMatXXv0pRN6ZE27UJXz1SB8`
+5. Deploy → New deployment → Web app. Execute as **Me**. Choose access appropriate for your intended customer flow; public access means anyone can call the endpoint.
+6. Copy the `/exec` URL.
 
-## Architecture
+The code expects headers on row 2 and data starting on row 3, based on the supplied screenshot. It only reads the worksheet named `DB SEP26`.
 
-`GitHub Pages (public frontend) → Apps Script Web App (API) → private Google Sheet`
-
-GitHub Pages is static hosting. It must not contain secrets or private customer data. Google Sheets should be accessible only to the business owner/team and Apps Script. The starter verifies order lookup using both the order reference and checkout email. Support requests are accepted only after that order/email combination is verified.
-
-## 1. Preview and publish the frontend
-
-1. Create a new GitHub repository, for example `kala-maia-portal`.
-2. Upload `index.html`, `styles.css`, and `app.js` to the repository root.
-3. In GitHub, open **Settings → Pages**.
-4. Choose **Deploy from a branch**, select `main` and `/ (root)`, then save.
-5. Open the generated GitHub Pages URL. The website runs in demo mode by default.
-
-The demo is not a live database: demo-created order references are not persisted. The demo tracking example is `PN-DEMO1` with `demo@example.com`.
-
-## 2. Create the private Google Sheet
-
-Create a new Google Sheet. Copy the spreadsheet ID from its URL, the long value between `/d/` and `/edit`.
-
-Do not share the sheet publicly. The Apps Script creates `Orders` and `SupportRequests` tabs and headers when first needed.
-
-## 3. Deploy the Apps Script API
-
-1. From the Sheet, select **Extensions → Apps Script**.
-2. Replace the editor contents with `apps-script/Code.gs`.
-3. Open **Project Settings → Script properties**.
-4. Add `SPREADSHEET_ID` with the ID of the sheet.
-5. Save. In Apps Script, select **Deploy → New deployment → Web app**.
-6. Execute as **Me**. Set access to the least-permissive setting that still permits your intended public customer workflow; a public customer form usually requires anonymous access, so use strict validation and monitor abuse.
-7. Deploy and copy the Web App URL ending in `/exec`.
-
-Google changes deployment labels and access options periodically. Test from a signed-out/private browser before using it with customers.
-
-## 4. Connect the frontend
-
-In `app.js`, update:
-
+## Connect GitHub Pages
+Edit `app.js`:
 ```js
 const CONFIG = {
-  apiUrl: "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE",
+  apiUrl: "https://script.google.com/macros/s/AKfycbwX_k8uad64KW3JVSbgox0PXTfYdKXKMm-0wil9Ag67W4dQDyeFmrjoPltumxApitLq/exec",
   currency: "IDR",
   demoMode: false
 };
 ```
+Commit changes to GitHub. Test lookup using a known customer ID.
 
-Commit and push. Wait for GitHub Pages to rebuild, then test:
-- create an order;
-- verify a new row appears in `Orders`;
-- track using the exact order reference + checkout email;
-- submit shipping/refund support using the same matching email;
-- change the status and tracking number in the restricted sheet, then track again.
-
-## 5. Operations workflow
-
-Suggested order statuses: `Order received → Confirmed → Preparing → Ready to ship → Shipped → Delivered`. `Cancelled` is a terminal status. Update tracking number/URL and status in the private `Orders` sheet.
-
-Refund requests are **requests for review**, not automatic refunds. Review `SupportRequests`, verify the case, and record approval/rejection and actual payment/refund status using a controlled staff workflow. Never store card details in the sheet.
-
-## Before real launch — required hardening
-
-This is a starter, not a production-ready commerce platform. Before accepting real customer data:
-- Add abuse prevention / rate limiting (Apps Script public endpoints can be spammed).
-- Add email confirmation and staff notifications.
-- Add an authenticated admin interface; never expose `setOrderStatusAdmin` or its token in the public frontend.
-- Decide payment handling. Do not collect card numbers or passwords in this site; use a trusted payment provider if online payment is required.
-- Add privacy policy, terms, refund policy, retention rules, and an appropriate contact channel.
-- Validate shipping rates, product availability, promotions, and prices on the server.
-- Consider Apps Script quotas and concurrency; use a lock around ID allocation / writes if order volume increases.
-- Test duplicate submissions, malformed requests, cross-customer lookups, spreadsheet access, and all status transitions.
-
-## Important implementation notes
-
-- The browser sends the item name and quantity, but the Apps Script calculates price from a server-side price book.
-- Tracking lookup returns only customer-safe order fields, not address or phone.
-- `setOrderStatusAdmin()` is a server-side helper intended for restricted staff execution only. It is not exposed as a public `doPost` action.
-- The demo mode generates temporary references and is not connected to Google Sheets.
+## Privacy
+Customer-ID-only lookup is not strong identity verification. The API deliberately excludes DP, OCT, and Note, but a person who knows a customer ID can still see book titles, authors, formats, quantities, and unit prices. Use only if that disclosure is acceptable; add a second verification factor before showing sensitive customer or payment details.

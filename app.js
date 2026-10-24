@@ -1,73 +1,55 @@
-/* KALA MAIA starter. Demo mode is on until you configure the Apps Script URL.
-   Do not put secrets or service-account credentials in this public file. */
+/* KALA MAIA — read-only lookup against the existing DB SEP26 sheet.
+   Configure apiUrl and demoMode only after deploying the Apps Script backend. */
 const CONFIG = {
-  // Paste your deployed Apps Script web app URL here after deployment.
-  apiUrl: "",
+  apiUrl: "https://script.google.com/macros/s/AKfycbwX_k8uad64KW3JVSbgox0PXTfYdKXKMm-0wil9Ag67W4dQDyeFmrjoPltumxApitLq/exec",
   currency: "IDR",
-  demoMode: true
+  demoMode: false
 };
 const $ = (s, root=document) => root.querySelector(s);
 const $$ = (s, root=document) => [...root.querySelectorAll(s)];
 const money = n => new Intl.NumberFormat("id-ID",{style:"currency",currency:CONFIG.currency,maximumFractionDigits:0}).format(Number(n)||0);
 $("#year").textContent = new Date().getFullYear();
 const backdrop=$("#modalBackdrop"), content=$("#modalContent"), title=$("#modalTitle"), subtitle=$("#modalSubtitle");
-let activeView="order";
 $("#menuToggle").addEventListener("click",()=>$("#mainNav").classList.toggle("open"));
 $$("[data-open]").forEach(b=>b.addEventListener("click",e=>{e.preventDefault();openModal(b.dataset.open);$("#mainNav").classList.remove("open")}));
 $("#modalClose").addEventListener("click",closeModal);
 backdrop.addEventListener("click",e=>{if(e.target===backdrop)closeModal()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal()});
-function openModal(view){activeView=view;backdrop.hidden=false;document.body.style.overflow="hidden";renderView(view);$("#modalClose").focus()}
+function openModal(view){backdrop.hidden=false;document.body.style.overflow="hidden";renderView(view);$("#modalClose").focus()}
 function closeModal(){backdrop.hidden=true;document.body.style.overflow="";content.innerHTML=""}
 function renderView(view){
   const views={
-    order:["Place an order","Tell us what you need. We'll take it from here.",orderForm],
-    track:["Track an order","Enter your order reference and the email used at checkout.",trackForm],
-    support:["Order support","Request shipping help or ask our team to review a refund.",supportForm]
+    order:["Order lookup","Enter your customer ID to view matching book records.",lookupForm],
+    track:["Find my books","Search the DB SEP26 worksheet by customer ID.",lookupForm],
+    support:["Order support","Contact the team if a record looks incorrect.",supportInfo]
   };
   [title.textContent,subtitle.textContent]=views[view].slice(0,2);content.innerHTML=views[view][2]();
-  wireView(view);
+  if(view!=="support") $("#lookupForm").addEventListener("submit",lookupCustomer);
 }
-function orderForm(){return `<form id="orderForm"><div class="form-grid">
-  <div class="field"><label for="customerName">Full name *</label><input id="customerName" name="customerName" required maxlength="100" autocomplete="name"></div>
-  <div class="field"><label for="customerEmail">Email *</label><input id="customerEmail" name="customerEmail" type="email" required maxlength="150" autocomplete="email"></div>
-  <div class="field"><label for="customerPhone">WhatsApp / phone</label><input id="customerPhone" name="customerPhone" maxlength="30" autocomplete="tel"></div>
-  <div class="field"><label for="batch">Batch / collection</label><select id="batch" name="batch"><option value="General">General order</option><option value="Batch 01">Batch 01</option><option value="Batch 02">Batch 02</option></select></div>
-  <div class="field full"><label for="address">Shipping address *</label><textarea id="address" name="address" required maxlength="500" autocomplete="street-address"></textarea></div>
-  <div class="field"><label for="itemName">Item *</label><select id="itemName" name="itemName"><option value="Everyday Tote" data-price="125000">Everyday Tote — Rp125.000</option><option value="Gift Set" data-price="185000">Gift Set — Rp185.000</option><option value="Studio Pouch" data-price="75000">Studio Pouch — Rp75.000</option></select></div>
-  <div class="field"><label for="quantity">Quantity *</label><input id="quantity" name="quantity" type="number" min="1" max="20" value="1" required></div>
-  <div class="field full"><label for="notes">Order notes (optional)</label><textarea id="notes" name="notes" maxlength="500" placeholder="Color, size, or delivery notes"></textarea></div>
-  </div><div class="estimate"><span>Estimated item total</span><strong id="estimate">${money(125000)}</strong></div>
-  <button class="button button-dark form-submit" type="submit">Submit order request <span>↗</span></button><div id="formMessage" aria-live="polite"></div></form>`}
-function trackForm(){return `<form id="trackForm"><div class="field"><label for="orderId">Order reference *</label><input id="orderId" name="orderId" required maxlength="40" placeholder="e.g. PN-ABC123"></div><div class="field"><label for="trackEmail">Checkout email *</label><input id="trackEmail" name="email" type="email" required maxlength="150"></div><button class="button button-dark form-submit" type="submit">Find my order <span>→</span></button><div id="formMessage" aria-live="polite"></div></form>`}
-function supportForm(){return `<form id="supportForm"><div class="form-grid"><div class="field"><label for="supportOrder">Order reference *</label><input id="supportOrder" name="orderId" required maxlength="40"></div><div class="field"><label for="supportEmail">Email *</label><input id="supportEmail" name="email" type="email" required maxlength="150"></div><div class="field"><label for="requestType">Request type *</label><select id="requestType" name="type"><option value="shipping">Shipping request</option><option value="refund">Refund review</option><option value="other">Other order support</option></select></div><div class="field"><label for="reason">Reason *</label><select id="reason" name="reason"><option>Delayed shipment</option><option>Damaged item</option><option>Wrong or missing item</option><option>Changed my mind</option><option>Other</option></select></div><div class="field full"><label for="details">Details *</label><textarea id="details" name="details" required maxlength="1500" placeholder="Explain what happened and what help you need"></textarea></div></div><button class="button button-dark form-submit" type="submit">Submit request <span>↗</span></button><div id="formMessage" aria-live="polite"></div></form>`}
-function wireView(view){
-  if(view==="order"){
-    const item=$("#itemName"),qty=$("#quantity");
-    const update=()=>$("#estimate").textContent=money(Number(item.selectedOptions[0].dataset.price)*Math.max(1,Math.min(20,Number(qty.value)||1)));
-    item.addEventListener("change",update);qty.addEventListener("input",update);
-    $("#orderForm").addEventListener("submit",submitOrder);
-  } else if(view==="track") $("#trackForm").addEventListener("submit",trackOrder);
-  else $("#supportForm").addEventListener("submit",submitSupport);
-}
+function lookupForm(){return `<form id="lookupForm"><div class="field"><label for="custId">Customer ID *</label><input id="custId" name="custId" required maxlength="40" placeholder="e.g. SHA5611" autocomplete="off"></div><button class="button button-dark form-submit" type="submit">Find my records <span>→</span></button><div id="formMessage" aria-live="polite"></div></form><p class="privacy-note">Lookup uses customer ID only, as requested. Anyone who knows an ID may be able to view the returned book records; only limited fields are displayed.</p>`}
+function supportInfo(){return `<div class="result-card"><h3>Need help with a record?</h3><p>Please contact your KALA MAIA administrator through your usual support channel. This starter does not submit or modify records.</p></div>`}
 async function api(action,payload={}){
   if(CONFIG.demoMode || !CONFIG.apiUrl) return demoApi(action,payload);
   const res=await fetch(CONFIG.apiUrl,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action,...payload})});
   const data=await res.json();if(!res.ok||data.ok===false)throw new Error(data.error||"Something went wrong. Please try again.");return data;
 }
 function showMessage(message,error=false){const el=$("#formMessage");if(el){el.className=error?"notice error":"notice";el.textContent=message}}
-async function submitOrder(e){e.preventDefault();const f=e.currentTarget;const d=Object.fromEntries(new FormData(f));d.quantity=Number(d.quantity);d.unitPrice=Number($("#itemName").selectedOptions[0].dataset.price);d.itemName=$("#itemName").value;d.subtotal=d.quantity*d.unitPrice;const btn=f.querySelector("button[type=submit]");btn.disabled=true;btn.textContent="Submitting…";try{const r=await api("createOrder",d);content.innerHTML=`<div class="notice">Your order request has been recorded in ${CONFIG.demoMode?"demo mode":"the order system"}.</div><div class="result-card"><span class="status-pill">Order received</span><h3>Reference: ${escapeHtml(r.orderId)}</h3><p>Estimated total: <b>${money(d.subtotal)}</b></p><p>Keep your reference and use your checkout email to track your order.</p></div><button class="button button-dark form-submit" id="trackNew">Track this order</button>`;$("#trackNew").onclick=()=>{renderView("track");$("#orderId").value=r.orderId;$("#trackEmail").value=d.customerEmail}}catch(err){showMessage(err.message,true);btn.disabled=false;btn.textContent="Submit order request ↗"}}
-async function trackOrder(e){e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget));showMessage("Looking up your order…");try{const r=await api("trackOrder",d);if(!r.order){showMessage("No matching order was found. Check the reference and email, then try again.",true);return}const o=r.order;$("#formMessage").outerHTML=`<div class="result-card" id="trackResult"><span class="status-pill">${escapeHtml(o.status)}</span><h3>${escapeHtml(o.orderId)}</h3><p><b>Item:</b> ${escapeHtml(o.itemName||"—")} × ${escapeHtml(o.quantity||"—")}</p><p><b>Total:</b> ${money(o.total||0)}</p><p><b>Last updated:</b> ${escapeHtml(o.updatedAt||"—")}</p>${o.trackingNumber?`<p><b>Tracking:</b> ${escapeHtml(o.trackingNumber)}</p>`:""}${o.trackingUrl?`<p><a href="${safeUrl(o.trackingUrl)}" target="_blank" rel="noopener">Open carrier tracking ↗</a></p>`:""}</div>`}catch(err){showMessage(err.message,true)}}
-async function submitSupport(e){e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget));const btn=e.currentTarget.querySelector("button[type=submit]");btn.disabled=true;try{const r=await api("createSupportRequest",d);content.innerHTML=`<div class="notice">Your request has been submitted for review.</div><div class="result-card"><h3>Request reference: ${escapeHtml(r.requestId)}</h3><p>Keep this reference if you need to contact support. Refunds are not automatic and require team review.</p></div>`}catch(err){showMessage(err.message,true);btn.disabled=false}}
+async function lookupCustomer(e){
+  e.preventDefault();const custId=String(new FormData(e.currentTarget).get("custId")||"").trim();
+  showMessage("Searching DB SEP26…");
+  try{
+    const r=await api("lookupByCustId",{custId});
+    if(!r.records||!r.records.length){showMessage("No records found for that customer ID in DB SEP26.",true);return}
+    const rows=r.records.map(x=>`<tr><td>${escapeHtml(x.title)}</td><td>${escapeHtml(x.author)}</td><td>${escapeHtml(x.format)}</td><td>${escapeHtml(x.qty)}</td><td>${money(x.unitPrice)}</td></tr>`).join("");
+    const total=r.records.reduce((s,x)=>s+(Number(x.qty)||0)*(Number(x.unitPrice)||0),0);
+    $("#formMessage").outerHTML=`<div id="lookupResult"><div class="notice">Found ${r.records.length} book record(s) for customer ID <b>${escapeHtml(r.custId)}</b> in DB SEP26.</div><div class="result-card"><h3>Matching records</h3><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th align="left">Title</th><th align="left">Author</th><th align="left">Format</th><th align="right">Qty</th><th align="right">Unit price</th></tr></thead><tbody>${rows}</tbody></table></div><p style="margin-top:14px"><b>Calculated item value: ${money(total)}</b></p><p>Source: DB SEP26. This total is calculated from quantity × unit price and may not represent final payment due.</p></div><button class="button button-light form-submit" id="lookupAgain">Search another customer</button></div>`;
+    $("#lookupAgain").onclick=()=>renderView("track");
+  }catch(err){showMessage(err.message,true)}
+}
 function escapeHtml(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function safeUrl(v){try{const u=new URL(v);return ["https:","http:"].includes(u.protocol)?u.href:"#"}catch{return "#"}}
 async function demoApi(action,d){
-  await new Promise(r=>setTimeout(r,350));
-  if(action==="createOrder")return {ok:true,orderId:"PN-"+Math.random().toString(36).slice(2,8).toUpperCase()};
-  if(action==="createSupportRequest")return {ok:true,requestId:"SR-"+Math.random().toString(36).slice(2,8).toUpperCase()};
-  if(action==="trackOrder"){
-    if(d.orderId==="PN-DEMO1"&&d.email.toLowerCase()==="demo@example.com")return {ok:true,order:{orderId:"PN-DEMO1",status:"In transit",itemName:"Everyday Tote",quantity:1,total:125000,updatedAt:"2026-10-24",trackingNumber:"DEMO-TRACK-123",trackingUrl:"https://example.com"}};
-    return {ok:true,order:null};
-  }
+  await new Promise(r=>setTimeout(r,250));
+  if(action==="lookupByCustId" && String(d.custId).toUpperCase()==="SHA5611") return {ok:true,custId:"SHA5611",records:[{title:"Not Quite Dead Yet",author:"Holly Jackson",format:"Paperback",qty:1,unitPrice:208000},{title:"The Wrong Sister",author:"Claire Douglas",format:"Paperback",qty:1,unitPrice:208000},{title:"Pretty Girls",author:"Karin Slaughter",format:"Paperback",qty:1,unitPrice:208000}]};
+  if(action==="lookupByCustId") return {ok:true,custId:d.custId,records:[]};
   throw new Error("Unsupported action");
 }
